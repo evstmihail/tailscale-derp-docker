@@ -1,4 +1,7 @@
 # Introduction
+*** This is a fork of the original repository [Tailscale-DERP-Docker](https://github.com/n0ptr/Tailscale-DERP-Docker) by [Liam Tietjens](https://github.com/n0ptr) that was abandoned, unfortunately. ***
+---
+
 The aim of this repository is to create a simple and easy to use docker container with minimal setup to run your own Tailscale DERP server.  
 
 There is two parts to the container, the tailscale client itself and the DERP server. The tailscale client is used to connect the container to your tailnet as it's own device, this allows the --verify-clients argument to be set on the derp server, this is so only devices in your own tailnet can use the DERP server, allowing it to the open internet in my opinion is a bad idea. 
