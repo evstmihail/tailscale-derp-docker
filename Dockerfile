@@ -1,30 +1,20 @@
 FROM alpine:latest AS builder
 
-LABEL org.opencontainers.image.source https://github.com/n0ptr/Tailscale-DERP-Docker
-
-#Install GO and Tailscale DERPER
-RUN apk add go --repository=https://dl-cdn.alpinelinux.org/alpine/edge/community
+RUN apk add --no-cache go --repository=https://dl-cdn.alpinelinux.org/alpine/edge/community
 RUN go install tailscale.com/cmd/derper@main
 
 FROM alpine:latest
 
-#Install Tailscale requirements
-RUN apk add curl iptables
+LABEL org.opencontainers.image.source="https://github.com/evstmihail/tailscale-derp-docker"
 
-#Install Tailscale and Tailscaled
-RUN apk add tailscale --repository=https://dl-cdn.alpinelinux.org/alpine/edge/community
+RUN apk add --no-cache curl iptables \
+    && apk add --no-cache tailscale --repository=https://dl-cdn.alpinelinux.org/alpine/edge/community
 
-RUN mkdir -p /root/go/bin
-COPY --from=builder /root/go/bin/derper /root/go/bin/derper
+COPY --from=builder /root/go/bin/derper /usr/local/bin/derper
 
-#Copy init script
 COPY init.sh /init.sh
 RUN chmod +x /init.sh
 
-#Derper Web Ports
-EXPOSE 80
-EXPOSE 443/tcp
-#STUN
-EXPOSE 3478/udp
+EXPOSE 80 443/tcp 3478/udp
 
-ENTRYPOINT /init.sh
+ENTRYPOINT ["/init.sh"]

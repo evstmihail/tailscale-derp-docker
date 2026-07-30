@@ -1,108 +1,96 @@
-# Introduction
-*** This is a fork of the original repository [Tailscale-DERP-Docker](https://github.com/n0ptr/Tailscale-DERP-Docker) by [Liam Tietjens](https://github.com/n0ptr) that was abandoned, unfortunately. ***
----
+# Tailscale DERP Docker
 
-The aim of this repository is to create a simple and easy to use docker container with minimal setup to run your own Tailscale DERP server.  
+A simple Docker container to run your own [Tailscale DERP server](https://tailscale.com/kb/1118/custom-derp-servers/).
 
-There is two parts to the container, the tailscale client itself and the DERP server. The tailscale client is used to connect the container to your tailnet as it's own device, this allows the --verify-clients argument to be set on the derp server, this is so only devices in your own tailnet can use the DERP server, allowing it to the open internet in my opinion is a bad idea. 
+Based on the original [Tailscale-DERP-Docker](https://github.com/n0ptr/Tailscale-DERP-Docker) by [Liam Tietjens](https://github.com/n0ptr).
 
-Placing this DERP server at a closer geolocation than the default DERP servers to all of your devices can and will be beneficial for connections speeds between your devices that can't make a direct connection or at least struggle too.  
+## How It Works
 
-This is scalable, just build and run the container on servers in different countries if need be.  
+The container runs two components:
 
-My recommendation for the tailscale auth key to key an non-ephemeral key and once the device is connected disable the key expiry otherwise you will need to go back every now and then to renew it.
+1. **Tailscale client** — connects the container to your tailnet as its own device
+2. **DERP server** — with `--verify-clients` enabled, only devices in your tailnet can use it
 
-The container was built and tested on Ubuntu 22 5.19.0-28-generic. It's docker so it will most likely work on other distros as well.
+Placing a DERP server geographically closer to your devices improves relay connection speeds. This is scalable — deploy on servers in different regions as needed.
 
-# Maintenance Disclaimer
-This project is not actively maintained. A Github action will build the package with the latest versions availble but I don't have the time to work on or uplift this project.
+## Quick Start
 
-# Container
-The container is setup to pull the latest version of the DERPER application and the latest version of Tailscale each time you build the container.
+### 1. Configure environment
 
-To rebuild with the latest version simple run the following commands
-```bash
-docker rmi tailscale-derp-docker:1.0
-docker build . -t tailscale-derp-docker:1.0
-```
+Create a `.env` file:
 
-# Github Container Registry
-If you don't want to build the container, you can simply using the pre-built container I have added to the github container registry.
-
-Using the docker-compose.yml file, simply change this line
-```
-image: tailscale-derp-docker:1.0
-```
-To the following,
-```
-image: ghcr.io/n0ptr/tailscale-derp-docker:latest
-```
-
-There is a github actions workflow setup to build and publish a new container every roughly every 10 days so the tailscale version will be matching whichever version is available here https://pkgs.alpinelinux.org/package/edge/community/x86/tailscale
-
-# Setup Details
-
-## Ports Required
-To allow full functionality of the DERP server, you will need to open/allow the following ports on your Firewall/Security Group
-
-```
-80:80/tcp
-443:443/tcp
-3478:3478/udp
-```
-
-Port 3478 is for STUN
-
-## Changing the .env file variables
-**IMPORTANT STEP**
-
-Change the variables below, most importantly the hostname and tailscale auth key variable.  
-Make sure the hostname is correct in your DNS zone or you will get an error when attempting to request a letsencrypt certificate
-
-```
+```env
 TAILSCALE_DERP_HOSTNAME=derp.example.com
 TAILSCALE_DERP_VERIFY_CLIENTS=true
 TAILSCALE_DERP_CERTMODE=letsencrypt
-TAILSCALE_AUTH_KEY="ENTER YOUR TAILSCALE AUTH KEY HERE"
+TAILSCALE_AUTH_KEY=tskey-auth-xxxxx
 ```
 
-## Building Docker Image
+> Ensure the hostname resolves correctly in DNS before starting — Let's Encrypt needs it for certificate issuance.
+
+> Use a non-ephemeral auth key and disable key expiry on the device after it connects.
+
+### 2. Open firewall ports
+
 ```
-docker build . -t tailscale-derp-docker:1.0
+80/tcp    — HTTP (cert challenges)
+443/tcp   — DERP traffic
+3478/udp  — STUN
 ```
 
-## Starting the image
-```
+### 3. Start the container
+
+```bash
 docker compose up -d
 ```
 
-## Checking containers logs
-All processes and scripts are set to direct logs to stdout run the below command to monitor the container logs
+### 4. Check logs
 
-```
+```bash
 docker logs -f tailscale-derp
 ```
 
-## Changing the Tailscale ACL
-Once your Tailscale DERP server is operational and you can see the new device in the devices section of the Tailscale admin console, You need to change your ACL to only allow the use of your DERP server and omit out the default Tailscale servers. This can be done by adding the following config at the bottom of your ACL file.
+## Pre-built Image
+
+A GitHub Actions workflow builds and publishes a new image every ~10 days with the latest Tailscale and DERP versions:
 
 ```
-	"derpMap": {
-		"OmitDefaultRegions": true,
-		"Regions": {
-			"900": {
-				"RegionID":   900,
-				"RegionCode": "myderpserver",
-				"Nodes": [
-					{
-						"Name":     "1",
-						"RegionID": 900,
-						"HostName": "derp.example.com",
-					},
-				],
-			},
-		},
-	},
+ghcr.io/evstmihail/tailscale-derp-docker:latest
 ```
 
-More information can be found here [Tailscale DERP server docs](https://tailscale.com/kb/1118/custom-derp-servers/) on setting this config.  
+The `docker-compose.yml` uses this image by default.
+
+## Building Locally
+
+```bash
+docker build . -t tailscale-derp-docker:latest
+```
+
+Then update `docker-compose.yml` image to `tailscale-derp-docker:latest`.
+
+## Tailscale ACL Configuration
+
+Once the DERP server appears in your Tailscale admin console, add this to your ACL to route traffic through it:
+
+```jsonc
+"derpMap": {
+    "OmitDefaultRegions": true,
+    "Regions": {
+        "900": {
+            "RegionID":   900,
+            "RegionCode": "myderp",
+            "Nodes": [
+                {
+                    "Name":     "1",
+                    "RegionID": 900,
+                    "HostName": "derp.example.com",
+                },
+            ],
+        },
+    },
+},
+```
+
+Set `"OmitDefaultRegions": false` if you want to keep Tailscale's default DERP servers as fallback.
+
+More info: [Custom DERP Servers](https://tailscale.com/kb/1118/custom-derp-servers/)  
